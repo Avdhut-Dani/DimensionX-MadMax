@@ -1,45 +1,58 @@
 let ws;
+let running = false;
 
-async function startCapture() {
-  chrome.tabCapture.capture(
-    { video: true, audio: false },
-    (stream) => {
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.play();
+console.log("🧠 offscreen loaded");
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+async function startCapture(streamId) {
+  if (running) return;
+  running = true;
 
-      video.onloadedmetadata = () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      mandatory: {
+        chromeMediaSource: "tab",
+        chromeMediaSourceId: streamId
+      }
+    },
+    audio: false
+  });
 
-        ws = new WebSocket("ws://localhost:8080");
+  const video = document.createElement("video");
+  video.srcObject = stream;
+  await video.play();
 
-        ws.binaryType = "arraybuffer";
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-        const FPS = 10;
+  video.onloadedmetadata = () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+  };
 
-        setInterval(() => {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob(
-            (blob) => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(blob);
-              }
-            },
-            "image/webp",
-            0.7
-          );
-        }, 1000 / FPS);
-      };
+  ws = new WebSocket("ws://localhost:8080");
+  ws.binaryType = "arraybuffer";
+
+  const FPS = 10;
+
+  ws.onopen = async () => {
+    console.log("🔌 WS connected");
+
+    while (running) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise(r =>
+        canvas.toBlob(r, "image/webp", 0.7)
+      );
+
+      ws.send(blob);
+      await new Promise(r => setTimeout(r, 1000 / FPS));
     }
-  );
+  };
 }
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "BEGIN_STREAM") {
-    startCapture();
+    startCapture(msg.streamId);
   }
 });
+
