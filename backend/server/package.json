@@ -1,0 +1,7 @@
+{
+  "name": "madmax-receiver",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
