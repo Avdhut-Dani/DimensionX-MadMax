@@ -4,10 +4,9 @@
   "description": "Real-time tab capture & streaming with overlay",
   "version": "1.1",
   "permissions": [
-    "tabCapture",
+    "offscreen",
     "activeTab",
     "scripting",
-    "offscreen",
     "storage",
     "tabs"
   ],

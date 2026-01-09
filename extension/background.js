@@ -5,18 +5,24 @@ const PROJECT_ID = "madmax-67ca2";
 let offscreenCreated = false;
 
 async function ensureOffscreen() {
+  if (!chrome.offscreen) {
+    console.error("❌ chrome.offscreen API not available");
+    return;
+  }
+
   const exists = await chrome.offscreen.hasDocument();
   if (exists) return;
 
   await chrome.offscreen.createDocument({
     url: "offscreen.html",
     reasons: ["USER_MEDIA"],
-    justification: "Tab capture and frame streaming"
+    justification: "Single screenshot capture"
   });
 
-  // 🔑 CRITICAL: give offscreen time to load
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // Give it time to boot so inspector appears
+  await new Promise(resolve => setTimeout(resolve, 500));
 }
+
 
 
 async function fetchOverlayPermission(uid) {
@@ -91,22 +97,52 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-chrome.runtime.onMessage.addListener(async (msg, sender) => {
+chrome.runtime.onMessage.addListener(async (msg) => {
   if (msg.type === "START_CAPTURE") {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: tab.id
+    // 1️⃣ Take screenshot of visible tab
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, {
+      format: "png"
     });
 
+    // 2️⃣ Ensure offscreen exists
     await ensureOffscreen();
 
+    // 3️⃣ Send image to offscreen
     chrome.offscreen.sendMessage({
-      type: "BEGIN_STREAM",
-      streamId
+      type: "UPLOAD_SCREENSHOT",
+      dataUrl
     });
   }
 });
+
+chrome.runtime.onMessage.addListener(async (msg) => {
+  if (msg.type === "TAKE_SCREENSHOT") {
+    console.log("📸 TAKE_SCREENSHOT received");
+
+    const dataUrl = await chrome.tabs.captureVisibleTab(
+      null,
+      { format: "png" } // ✅ MUST be png or jpeg
+    );
+
+    // Convert base64 → binary
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+
+    // Send to backend
+    const ws = new WebSocket("ws://localhost:8080");
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = async () => {
+      console.log("🔌 WS connected, sending screenshot");
+      ws.send(await blob.arrayBuffer());
+      ws.close();
+    };
+  }
+});
+
+
+
+
 
 
 
