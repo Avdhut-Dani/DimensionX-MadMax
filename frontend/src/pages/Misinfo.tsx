@@ -24,7 +24,7 @@ export const Misinfo = () => {
   const [ocrError, setOcrError] = useState<string | null>(null);
 
   // 🔑 Replace with your real reCAPTCHA site key
-  const siteKey = '6Ld2qUUsAAAAALlqAdjCcyTmT0lMU8GiVuSGoRrt';
+  const siteKey = 'YOUR_RE-CAPTCHA_KEY_HERE';
 
   // Store widget ID (rendered once)
   const captchaWidget = useRef<number | null>(null);
