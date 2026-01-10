@@ -1,6 +1,39 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, X } from "lucide-react";
+import { Cpu, X } from "lucide-react";
+
+
+/* ======================================================
+   MADMAX AI — DEEPFAKE & MISINFORMATION ANALYST
+   Backend: http://localhost:3001/api/chat
+   Models: Ollama (mistral, gemma3, llama3, phi)
+====================================================== */
+
+const SYSTEM_PROMPT = `
+You are MADMAX AI.
+
+MISSION:
+You are an expert system specialized in:
+- Deepfake detection (image, video, audio)
+- Misinformation & disinformation analysis
+- AI-generated content identification
+- Media forensics & verification
+- Propaganda & manipulation patterns
+- Digital trust and authenticity
+
+BEHAVIOR RULES:
+- Be analytical, precise, and calm
+- Do NOT roleplay or chit-chat
+- Do NOT hallucinate sources
+- If uncertain, say so clearly
+- Provide structured explanations
+- Focus on verification methods and signals
+
+STYLE:
+- Professional intelligence analyst
+- Clear sections or bullet points when useful
+- No emojis, no fluff
+`;
 
 const MadMaxChatOrb = () => {
   const [open, setOpen] = useState(false);
@@ -8,98 +41,190 @@ const MadMaxChatOrb = () => {
     {
       role: "assistant",
       content:
-        "MadMax AI secure channel established. Awaiting transmission.",
+        "MADMAX AI online. I analyze deepfakes, misinformation, and AI-generated content. What requires verification?",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const [model, setModel] = useState("mistral");
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /* ======================
+     Scroll + textarea
+  ====================== */
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, open]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading, open]);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height =
+        textareaRef.current.scrollHeight + "px";
+    }
+  }, [input]);
 
+  /* ======================
+     Send Message
+  ====================== */
   const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+    const text = input.trim();
+    if (!text || loading) return;
 
-    const userMsg = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
     setLoading(true);
+    setInput("");
 
-    // 🔴 Replace with backend later
-    await new Promise((r) => setTimeout(r, 900));
+    const userMessage = { role: "user", content: text };
+    const history = [...messages, userMessage];
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content:
-          "Signal parsed. Probability of anomaly detected. Recommend escalation.",
-      },
-    ]);
+    const assistantPlaceholder = { role: "assistant", content: "" };
+    setMessages([...history, assistantPlaceholder]);
+    const assistantIndex = history.length;
+
+    const finalPrompt = `
+${SYSTEM_PROMPT}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER QUERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+${text}
+`.trim();
+
+    try {
+      const res = await fetch("http://localhost:3001/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          message: finalPrompt,
+        }),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No stream");
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const json = JSON.parse(line);
+            if (json.response) {
+              fullText += json.response;
+
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[assistantIndex] = {
+                  role: "assistant",
+                  content: fullText,
+                };
+                return updated;
+              });
+            }
+          } catch {
+            // ignore malformed stream chunks
+          }
+        }
+      }
+    } catch (err) {
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[assistantIndex] = {
+          role: "assistant",
+          content:
+            "Connection failure. Verify Ollama is running and the backend bridge is active.",
+        };
+        return updated;
+      });
+    }
 
     setLoading(false);
   };
 
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  /* ======================
+     Render
+  ====================== */
   return (
     <>
-      {/* FLOATING ORB */}
+      {/* Floating Orb */}
       <motion.button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-8 right-8 z-50 w-14 h-14 rounded-full
-        bg-black border border-red-600
+        className="fixed bottom-8 right-8 z-50 w-16 h-16 rounded-full
+        bg-black border border-red-700
         shadow-[0_0_30px_rgba(255,0,0,0.6)]
         flex items-center justify-center"
-        animate={{
-          boxShadow: [
-            "0 0 20px rgba(255,0,0,0.4)",
-            "0 0 36px rgba(255,0,0,0.9)",
-            "0 0 20px rgba(255,0,0,0.4)",
-          ],
-        }}
-        transition={{ duration: 4, repeat: Infinity }}
         whileHover={{ scale: 1.15 }}
+        whileTap={{ scale: 0.95 }}
       >
-        {open ? (
-          <X className="text-red-500" />
-        ) : (
-          <MessageSquare className="text-red-500" />
-        )}
+        <Cpu className="text-red-500 w-7 h-7" />
       </motion.button>
 
-      {/* CHAT WINDOW */}
+      {/* Chat Window */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, x: 40, scale: 0.96 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 40, scale: 0.96 }}
-            className="fixed bottom-28 right-8 z-50
-            w-[380px] h-[540px]
-            bg-black/85 backdrop-blur-xl
-            border border-red-900/50
-            rounded-xl overflow-hidden
-            shadow-[0_0_60px_rgba(255,0,0,0.35)]
+            initial={{ opacity: 0, y: 40, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 40, scale: 0.95 }}
+            className="fixed bottom-28 right-8 w-[380px] h-[540px] z-50
+            rounded-2xl overflow-hidden
+            bg-black/90 backdrop-blur-xl
+            border border-red-900
+            shadow-[0_0_50px_rgba(255,0,0,0.45)]
             flex flex-col font-mono text-xs"
           >
-            {/* HEADER */}
-            <div className="h-14 px-4 flex items-center justify-between
-              bg-gradient-to-r from-black via-red-950/40 to-black
-              border-b border-red-900/40">
+            {/* Header */}
+            <div className="h-14 flex items-center justify-between px-4
+            bg-gradient-to-r from-black via-red-950/40 to-black
+            border-b border-red-900">
               <div>
-                <p className="text-red-500 tracking-widest text-sm">
+                <p className="text-red-500 tracking-widest font-bold">
                   MADMAX AI
                 </p>
-                <p className="text-[10px] text-gray-500">
-                  Secure Dimensional Channel
+                <p className="text-[10px] text-gray-400">
+                  Deepfake & Misinformation Analyst
                 </p>
               </div>
-              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="bg-black text-red-400 text-[10px]
+                  border border-red-800 rounded px-2 py-1"
+                >
+                  <option value="mistral">mistral</option>
+                  <option value="gemma3:1b">gemma3:1b</option>
+                  <option value="gemma3:3b">gemma3:3b</option>
+                  <option value="llama3:8b">llama3:8b</option>
+                  <option value="phi3:mini">phi3:mini</option>
+                </select>
+
+                <Cpu className="text-red-600 w-4 h-4" />
+                <button onClick={() => setOpen(false)}>
+                  <X className="text-gray-400 hover:text-red-500" />
+                </button>
+              </div>
             </div>
 
-            {/* MESSAGES */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
               {messages.map((m, i) => (
                 <div
                   key={i}
@@ -111,8 +236,8 @@ const MadMaxChatOrb = () => {
                     className={`max-w-[80%] px-3 py-2 rounded-md
                     ${
                       m.role === "user"
-                        ? "bg-red-950/40 border border-red-600 text-white"
-                        : "bg-black/60 border border-white/10 text-gray-200"
+                        ? "bg-red-900/30 border border-red-700 text-white"
+                        : "bg-black/60 border border-gray-700 text-gray-200"
                     }`}
                   >
                     {m.content}
@@ -121,37 +246,28 @@ const MadMaxChatOrb = () => {
               ))}
 
               {loading && (
-                <div className="text-red-500 animate-pulse">
-                  ANALYZING TRANSMISSION…
+                <div className="text-red-500 animate-pulse text-[10px]">
+                  ANALYZING SIGNAL…
                 </div>
               )}
-              <div ref={endRef} />
+
+              <div ref={messagesEndRef} />
             </div>
 
-            {/* INPUT */}
-            <div className="border-t border-red-900/40 p-2 bg-black/90">
-              <div className="flex gap-2">
-                <textarea
-                  rows={1}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  placeholder="Transmit message…"
-                  className="flex-1 resize-none bg-black/70 border border-white/10
-                  text-white rounded-md px-2 py-1 outline-none"
-                />
-                <button
-                  onClick={sendMessage}
-                  className="px-3 py-1 bg-red-600 text-black font-bold rounded-md"
-                >
-                  SEND
-                </button>
-              </div>
+            {/* Input */}
+            <div className="border-t border-red-900 p-3 bg-black">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder="Submit content or claim for analysis…"
+                className="w-full resize-none bg-black/70
+                border border-red-800
+                text-white text-xs rounded-md px-3 py-2
+                outline-none"
+              />
             </div>
           </motion.div>
         )}

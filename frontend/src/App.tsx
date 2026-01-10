@@ -7,9 +7,22 @@ import { Misinfo } from "./pages/Misinfo";
 import { Settings } from "./pages/Settings";
 import { AuthGuard } from "./components/AuthGuard";
 import { AudioProvider } from './context/AudioContext';
+import { useEffect } from "react";
+import { HomePage } from './pages/HomePage'; 
 
+import { initExtensionBridge } from "./extensionBridge";
 
 function App() {
+  useEffect(() => {
+    initExtensionBridge();
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("message", (e) => {
+      console.log("🌍 Website received message:", e.data);
+    });
+  }, []);
+  
   return (
     <AudioProvider>
     <BrowserRouter>
@@ -30,7 +43,8 @@ function App() {
             </AuthGuard>
           }
         >
-          <Route index element={<Dashboard />} />
+          <Route index element={<HomePage />} />
+          <Route path="deepfake" element={<Dashboard/>} />
           <Route path="misinfo" element={<Misinfo />} />
           <Route path="settings" element={<Settings />} />
         </Route>
