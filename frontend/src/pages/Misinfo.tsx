@@ -1,9 +1,20 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Panel } from '../components/ui/Panel';
 import { GlitchButton } from '../components/ui/GlitchButton';
-import { Search, AlertTriangle, Image as ImageIcon, Upload } from 'lucide-react';
+import {
+  Search,
+  AlertTriangle,
+  Image as ImageIcon,
+  Upload,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import Tesseract from 'tesseract.js';
+
+declare global {
+  interface Window {
+    grecaptcha: any;
+  }
+}
 
 export const Misinfo = () => {
   const [text, setText] = useState('');
@@ -12,6 +23,44 @@ export const Misinfo = () => {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
 
+  // 🔑 Replace with your real reCAPTCHA site key
+  const siteKey = '6Ld2qUUsAAAAALlqAdjCcyTmT0lMU8GiVuSGoRrt';
+
+  // Store widget ID (rendered once)
+  const captchaWidget = useRef<number | null>(null);
+
+  /* ==========================
+      CAPTCHA EXECUTION (FIXED)
+  ========================== */
+  const getCaptchaToken = async (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!window.grecaptcha) {
+        reject('Captcha script not loaded');
+        return;
+      }
+
+      window.grecaptcha.ready(() => {
+        try {
+          if (captchaWidget.current === null) {
+            captchaWidget.current = window.grecaptcha.render('recaptcha', {
+              sitekey: siteKey,
+              size: 'invisible',
+              callback: resolve,
+              'error-callback': () => reject('Captcha error'),
+            });
+          }
+
+          window.grecaptcha.execute(captchaWidget.current);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  };
+
+  /* ==========================
+      MAIN ANALYSIS HANDLER
+  ========================== */
   const handleScan = async () => {
     if (!text.trim()) return;
 
@@ -19,10 +68,15 @@ export const Misinfo = () => {
     setResult(null);
 
     try {
+      const captchaToken = await getCaptchaToken();
+
       const response = await fetch('http://127.0.0.1:8000/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text,
+          captcha: captchaToken,
+        }),
       });
 
       if (!response.ok) throw new Error('Backend error');
@@ -36,24 +90,24 @@ export const Misinfo = () => {
         reason: claim.reason,
         flags: data.flags.length
           ? data.flags
-          : [`Verdict: ${claim.verdict.toUpperCase()}`],
+          : [`Verdict: ${claim.verdict}`],
         stance: claim.stance,
       });
-    } catch {
+    } catch (err) {
       setResult({
         score: 0,
         verdict: 'ANALYSIS FAILED',
-        reason: 'Could not connect to analysis engine',
-        flags: ['API Connection Error'],
+        reason: 'Captcha or backend error',
+        flags: ['Captcha verification failed'],
       });
     } finally {
       setScanning(false);
     }
   };
 
-  /* ================================
-     OCR HANDLER
-  ================================= */
+  /* ==========================
+      OCR HANDLER
+  ========================== */
   const handleImageUpload = async (file: File) => {
     if (!file) return;
 
@@ -72,7 +126,6 @@ export const Misinfo = () => {
         return;
       }
 
-      // Inject OCR text directly into input
       setText((prev) =>
         prev ? `${prev}\n\n${extractedText}` : extractedText
       );
@@ -85,7 +138,10 @@ export const Misinfo = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-10">
-      {/* Header */}
+      {/* Invisible captcha mount point */}
+      <div id="recaptcha" />
+
+      {/* HEADER */}
       <div className="text-center">
         <h2 className="text-3xl font-display font-bold text-white mb-2">
           REALITY CHECKER
@@ -95,7 +151,6 @@ export const Misinfo = () => {
         </p>
       </div>
 
-      {/* MAIN GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* INPUT PANEL */}
         <Panel className="md:col-span-2" title="INPUT DATA">
@@ -116,7 +171,7 @@ export const Misinfo = () => {
         {/* RESULT PANEL */}
         <Panel title="ANALYSIS RESULT" glow={result ? 'red' : 'cyan'}>
           {!result && !scanning && (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500 font-mono text-xs text-center opacity-50">
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 font-mono text-xs opacity-50">
               <Search className="w-8 h-8 mb-2" />
               WAITING FOR INPUT...
             </div>
@@ -125,16 +180,12 @@ export const Misinfo = () => {
           {scanning && (
             <div className="space-y-2 font-mono text-xs text-neon">
               <p className="flex justify-between">
-                <span>SYNTAX CHECK</span>
-                <span>OK</span>
+                <span>CAPTCHA</span>
+                <span>VERIFIED</span>
               </p>
               <p className="flex justify-between">
-                <span>CROSS-REF DB</span>
-                <span>SEARCHING...</span>
-              </p>
-              <p className="flex justify-between">
-                <span>SENTIMENT</span>
-                <span>ANALYZING...</span>
+                <span>ANALYSIS</span>
+                <span>RUNNING</span>
               </p>
 
               <div className="h-1 bg-white/10 mt-4 overflow-hidden">
@@ -150,10 +201,10 @@ export const Misinfo = () => {
           {result && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="text-5xl font-display font-bold text-blood mb-1">
+                <div className="text-5xl font-display font-bold text-blood">
                   {result.score}%
                 </div>
-                <div className="text-xs font-mono text-blood border border-blood px-2 py-1 inline-block uppercase">
+                <div className="text-xs font-mono text-blood border border-blood px-2 py-1 inline-block">
                   {result.verdict}
                 </div>
                 <p className="mt-2 text-xs font-mono text-gray-400">
@@ -161,43 +212,26 @@ export const Misinfo = () => {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs font-mono text-gray-400 uppercase">
-                  Flags Detected:
-                </p>
-
-                {result.flags.map((flag: string, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 text-sm text-white bg-white/5 p-2 border-l-2 border-blood"
-                  >
-                    <AlertTriangle className="w-4 h-4 text-blood" />
-                    {flag}
-                  </div>
-                ))}
-              </div>
-
-              {result.stance && (
-                <div className="text-xs font-mono text-gray-400 space-y-1">
-                  <p>SUPPORTS: {result.stance.supports}</p>
-                  <p>REFUTES: {result.stance.refutes}</p>
-                  <p>NEUTRAL: {result.stance.neutral}</p>
+              {result.flags.map((flag: string, i: number) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 text-sm text-white bg-white/5 p-2 border-l-2 border-blood"
+                >
+                  <AlertTriangle className="w-4 h-4 text-blood" />
+                  {flag}
                 </div>
-              )}
+              ))}
             </div>
           )}
         </Panel>
       </div>
 
-      {/* OCR UPLOAD PANEL (NEW, BELOW CONTAINERS) */}
+      {/* OCR PANEL */}
       <Panel title="SCREENSHOT INPUT">
-        <label className="flex flex-col items-center justify-center border border-dashed border-white/20 bg-black/40 p-6 text-center cursor-pointer hover:border-neon transition">
+        <label className="flex flex-col items-center justify-center border border-dashed border-white/20 bg-black/40 p-6 cursor-pointer">
           <ImageIcon className="w-8 h-8 text-neon mb-2" />
           <p className="font-mono text-xs text-gray-300">
             DROP OR CLICK TO UPLOAD SCREENSHOT
-          </p>
-          <p className="font-mono text-[10px] text-gray-500 mt-1">
-            OCR → TEXT AUTO-INJECTED INTO INPUT DATA
           </p>
 
           <input
@@ -211,9 +245,9 @@ export const Misinfo = () => {
         </label>
 
         {ocrLoading && (
-          <div className="mt-4 flex items-center gap-2 text-xs font-mono text-neon">
-            <Upload className="w-4 h-4 animate-pulse" />
-            EXTRACTING TEXT FROM IMAGE...
+          <div className="mt-4 text-xs font-mono text-neon flex gap-2">
+            <Upload className="animate-pulse" />
+            EXTRACTING TEXT...
           </div>
         )}
 

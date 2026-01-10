@@ -56,7 +56,12 @@ export const Dashboard = () => {
         body: formData
       });
 
+      console.log("RAW RESPONSE:", res);
+
       const data = await res.json();
+
+      console.log("PARSED DATA:", data);
+      
       setResult(data);
     } catch (err) {
       console.error(err);
