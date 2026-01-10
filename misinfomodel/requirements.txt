@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+spacy
+sentence-transformers
+transformers
+torch
+numpy
+scikit-learn
+requests
+tqdm

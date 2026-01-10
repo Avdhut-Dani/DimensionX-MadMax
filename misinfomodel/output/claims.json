@@ -1,0 +1,27 @@
+[
+  {
+    "claim": "Portsmouth was discovered in 1635 by King Charles the IV.",
+    "sentence_id": 0,
+    "confidence": 0.9,
+    "verifiability_score": 0.9,
+    "reasons": [
+      "contains concrete date"
+    ],
+    "evidence": [
+      "It took longer for the news to reach the trans-Atlantic colonies, with the Somers Isles (also known as Bermuda) becoming the first to proclaim Charles II King on 5 July 1649",
+      "Charles II landed in Scotland at Garmouth in Morayshire on 23 June 1650 and signed the 1638 National Covenant and the 1643 Solemn League and Covenant shortly after coming ashore",
+      "Royalist defeat in the 1648 Second English Civil War resulted in the execution of Charles I in January 1649, and establishment of the Commonwealth of England",
+      "October 30 \u2013 King Charles I of England enters Oxford and establishes his court there",
+      "=== Second English Civil War (1648\u20131649) ===\n\nCharles I took advantage of the deflection of attention away from himself to negotiate on 28 December 1647 a secret treaty with the Scots, again promising church reform"
+    ],
+    "stance_result": {
+      "supports": 0,
+      "refutes": 2,
+      "neutral": 3
+    },
+    "final_verdict": {
+      "verdict": "false",
+      "reason": "multiple sources refute the claim"
+    }
+  }
+]
