@@ -139,12 +139,3 @@ chrome.runtime.onMessage.addListener(async (msg) => {
     };
   }
 });
-
-
-
-
-
-
-
-
-
