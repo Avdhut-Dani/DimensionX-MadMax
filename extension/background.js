@@ -1,6 +1,6 @@
 console.log("🔥 MadMax SW booted");
 
-const PROJECT_ID = "madmax-67ca2";
+const PROJECT_ID = "Project-ID";
 
 let offscreenCreated = false;
 
@@ -138,4 +138,5 @@ chrome.runtime.onMessage.addListener(async (msg) => {
       ws.close();
     };
   }
+
 });
